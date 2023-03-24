@@ -39,9 +39,10 @@ class Board {
 private:
     char** _board;
     ushort _size;
+    ushort _used;
 
 public:
-    Board(ushort s): _board(nullptr), _size(s) {
+    Board(ushort s): _board(nullptr), _size(s), _used(0) {
         if (s > 9 || s < 6) {
             throw runtime_error("Tried to make a board with dimensions outside 6x6 to 9x9!");
             _size = 6;
@@ -61,6 +62,7 @@ public:
     }
 
     const ushort& size = _size;
+    const ushort& used = _used;
     char** board = _board;
 
     void verify_board() const {
@@ -97,17 +99,14 @@ public:
     // This one's a doozy
     Game_State check_gamestate() const {
         verify_board(); // Can't be too safe!
-        ushort used_cells = 0;
 
-        // Check for five in a row in any direction
+        // Check for five in a row in any direction by casting a "ray" in each direction
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++) {
                 if (_board[y][x] == '.') continue;
 
-                used_cells++;
-
                 // Check south
-                if (y + 4 < size) {
+                if (y + 4 < size) { // Check to see if there's actually enough room for a line
                     for (short i = y, consecutive = 1; i < size; i++) {
                         if (_board[i][x] == _board[i + 1][x]) consecutive++;
                         else break;
@@ -144,7 +143,7 @@ public:
         }
         
         // If all cells are used, Chaos wins. If not, the game is incomplete.
-        return used_cells == size * size ? CHAOS_WIN : INCOMPLETE;
+        return used == size ? CHAOS_WIN : INCOMPLETE;
     }
 
     void reset_board() {
@@ -168,6 +167,7 @@ public:
         if (_board[y][x] == 'X' || _board[y][x] == 'O') return false;
 
         _board[y][x] = c;
+        _used++;
         return true;
     }
 };
@@ -194,6 +194,7 @@ int main() {
 
         game.add_piece(c, x, y);
         game.print_board();
+        cout << "Cells used: " << game.used << "\n\n";
         gs = game.check_gamestate();
 
         switch (gs) {
