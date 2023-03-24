@@ -38,43 +38,40 @@ enum Game_State { INCOMPLETE, ORDER_WIN, CHAOS_WIN };
 class Board {
 private:
     char** _board;
-    ushort _rows;
-    ushort _cols;
+    ushort _size;
 
 public:
-    Board(ushort x, ushort y): _board(nullptr), _rows(y), _cols(x) {
-        if (x > 9 || x < 6 || y > 9 || y < 6) {
-            throw runtime_error("Tried to make a board with dimensions outside 1x1 to 9x9!");
-            _rows = 6;
-            _cols = 6;
+    Board(ushort s): _board(nullptr), _size(s) {
+        if (s > 9 || s < 6) {
+            throw runtime_error("Tried to make a board with dimensions outside 6x6 to 9x9!");
+            _size = 6;
         }
 
         // Frankly unnecessary but I wanted to practice dynamic allocation
-        _board = new char*[_rows];
-        for (ushort i = 0; i < _rows; i++) {
-            _board[i] = new char[_cols];
-            for (ushort j = 0; j < _cols; j++) _board[i][j] = '.'; // Don't want garbage data!
+        _board = new char*[_size];
+        for (ushort y = 0; y < _size; y++) {
+            _board[y] = new char[_size];
+            for (ushort x = 0; x < _size; x++) _board[y][x] = '.'; // Don't want garbage data!
         }
     }
 
     ~Board() {
-        for (ushort i = 0; i < _rows; i++) delete[] _board[i];
+        for (ushort i = 0; i < _size; i++) delete[] _board[i];
         delete[] _board;
     }
 
-    const ushort& width = _cols;
-    const ushort& height = _rows;
-    // char** board = _board; // Be careful! Look - don't touch!
+    const ushort& size = _size;
+    char** board = _board;
 
-    void verify_board() {
-        for (ushort y = 0; y < height; y++)
-            for (ushort x = 0; x < width; x++)
+    void verify_board() const {
+        for (ushort y = 0; y < size; y++)
+            for (ushort x = 0; x < size; x++)
                 if (_board[y][x] != 'X' && _board[y][x] != 'O' && _board[y][x] !=  '.')
                     throw runtime_error("Invalid board!");
     }
 
-    char get_tile(ushort x, ushort y) {
-        if (x >= width || y >= height) {
+    char get_tile(ushort x, ushort y) const {
+        if (x >= size || y >= size) {
             throw runtime_error("Tried to get cell out of bounds!");
             return '\0';
         }
@@ -82,12 +79,83 @@ public:
         return _board[y][x];
     }
 
-    // Returns 1 if the piece was successfully added, 0 if not.
-    // This method won't add a piece if there's already a piece at the specified spot or if an
-    // exception is thrown, which happens if X exceeds _width - 1, Y exceeds _height - 1, or if
-    // C is not 'X' or 'O'.
+    // Should this produce a string instead?
+    void print_board() const {
+        cout << "  ";
+        for (ushort x = 0; x < size; x++) cout << x + 1 << ' ';
+        cout << '\n';
+
+        for (ushort y = 0; y < size; y++) {
+            cout << static_cast<char>('A' + y) << ' ';
+            for (ushort x = 0; x < size; x++) cout << _board[y][x] << ' ';
+            cout << '\n';
+        }
+
+        cout << '\n';
+    }
+
+    // This one's a doozy
+    Game_State check_gamestate() const {
+        verify_board(); // Can't be too safe!
+        ushort used_cells = 0;
+
+        // Check for five in a row in any direction
+        for (ushort y = 0; y < size; y++)
+            for (ushort x = 0; x < size; x++) {
+                if (_board[y][x] == '.') continue;
+
+                used_cells++;
+
+                // Check south
+                if (y + 4 < size) {
+                    for (short i = y, consecutive = 1; i < size; i++) {
+                        if (_board[i][x] == _board[i + 1][x]) consecutive++;
+                        else break;
+                        if (consecutive >= 5) return ORDER_WIN;
+                    }
+                }
+
+                // Check east
+                if (x + 4 < size) {
+                    for (short i = x, consecutive = 1; i < size; i++) {
+                        if (_board[y][i] == _board[y][i + 1]) consecutive++;
+                        else break;
+                        if (consecutive >= 5) return ORDER_WIN;
+                    }
+                }
+
+                // Check southeast
+                if (x + 4 < size && y + 4 < size) {
+                    for (short i = x, j = y, consecutive = 1; i < size && j < size; i++, j++) {
+                        if (_board[j][i] == _board[j + 1][i + 1]) consecutive++;
+                        else break;
+                        if (consecutive >= 5) return ORDER_WIN;
+                    }
+                }
+
+                // Check southwest
+                if (x >= 4 && y + 4 < size) {
+                    for (short i = x, j = y, consecutive = 1; i >= 0 && j < size; i--, j++) {
+                        if (_board[j][i] == _board[j + 1][i - 1]) consecutive++;
+                        else break;
+                        if (consecutive >= 5) return ORDER_WIN;
+                    }
+                }
+        }
+        
+        // If all cells are used, Chaos wins. If not, the game is incomplete.
+        return used_cells == size * size ? CHAOS_WIN : INCOMPLETE;
+    }
+
+    void reset_board() {
+        for (ushort y = 0; y < size; y++)
+            for (ushort x = 0; x < size; x++)
+                _board[y][x] = '.';
+    }
+
+    // Returns true if the piece was successfully added, false if not. Also throws exceptions.
     bool add_piece(char c, ushort x, ushort y) {
-        if (x >= width || y >= height) {
+        if (x >= size || y >= size) {
             throw runtime_error("Tried to set to cell out of bounds!");
             return false;
         }
@@ -102,63 +170,6 @@ public:
         _board[y][x] = c;
         return true;
     }
-
-    Game_State check_gamestate() {
-        verify_board(); // Can't be too safe!
-        // Check for a row, column, or cross of 5 'X's or 'O's
-        // Row check
-        for (ushort y = 0; y < height; y++) {
-            ushort consecutive = 0;
-
-            for (ushort x = 1; x < width; x++) {
-                if (_board[y][x] == _board[y][x - 1] && _board[y][x] != '.') consecutive++;
-            }
-
-            if (consecutive >= 4) return ORDER_WIN;
-        }
-
-        // Column check
-        for (ushort x = 0; x < width; x++) {
-            ushort consecutive = 0;
-
-            for (ushort y = 1; y < height; y++) {
-                if (_board[y][x] == _board[y - 1][x] && _board[y][x] != '.') consecutive++;
-            }
-
-            if (consecutive >= 4) return ORDER_WIN;
-        }
-
-        // Cross (\) check
-        
-
-        // Cross (/) check
-
-        // Check if all board spaces are filled
-        ushort spaces_used = 0;
-        for (ushort y = 0; y < height; y++) {
-            for (ushort x = 0; x < width; x++) {
-                if (_board[y][x] == 'X' || _board[y][x] == 'Y') spaces_used++;
-            }
-
-            if (spaces_used == width * height) return CHAOS_WIN;
-        }
-
-        return INCOMPLETE;
-    }
-
-    void print_board() {
-        cout << "  ";
-        for (ushort x = 0; x < width; x++) cout << x + 1 << ' ';
-        cout << '\n';
-
-        for (ushort y = 0; y < height; y++) {
-            cout << static_cast<char>('A' + y) << ' ';
-            for (ushort x = 0; x < width; x++) cout << _board[y][x] << ' ';
-            cout << '\n';
-        }
-
-        cout << '\n';
-    }
 };
 
 bool AI_order(Board& board);
@@ -166,21 +177,37 @@ bool AI_chaos(Board& board);
 bool AI_dummy(Board& board);
 
 int main() {
-    Board board(8, 6);
-    board.print_board();
+    Board game(6);
+    Game_State gs = game.check_gamestate();
+    game.print_board();
 
     // Extremely incomplete
-    while (board.check_gamestate() == INCOMPLETE) {
+    while (gs == INCOMPLETE) {
         string player_move = "";
         cout << "Enter a move [NumberLetter(X/O)]: ";
         cin >> player_move;
 
+        // This sucks! Please make it not suck!
         char c = toupper(player_move.at(2));
         ushort x = player_move.at(0) - '0' - 1;
         ushort y = toupper(player_move.at(1)) - 'A';
 
-        board.add_piece(c, x, y);
-        board.print_board();
+        game.add_piece(c, x, y);
+        game.print_board();
+        gs = game.check_gamestate();
+
+        switch (gs) {
+            case ORDER_WIN:
+                cout << "Order wins!\n";
+                break;
+            
+            case CHAOS_WIN:
+                cout << "Chaos wins!\n";
+                break;
+            
+            default:
+                break;
+        }
     }
 
     return 0;
