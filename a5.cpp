@@ -150,6 +150,8 @@ public:
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++)
                 _board[y][x] = '.';
+
+        _used = 0;
     }
 
     // Returns true if the piece was successfully added, false if not. Also throws exceptions.
