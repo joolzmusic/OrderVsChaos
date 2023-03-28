@@ -65,13 +65,15 @@ public:
     const ushort& used = _used;
     char** board = _board;
 
+    //just for testing. No need to catch this
     void verify_board() const {
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++)
                 if (_board[y][x] != 'X' && _board[y][x] != 'O' && _board[y][x] !=  '.')
                     throw runtime_error("Invalid board!");
     }
-
+ 
+    //For AI only. No need to catch this
     char get_tile(ushort x, ushort y) const {
         if (x >= size || y >= size) {
             throw runtime_error("Tried to get cell out of bounds!");
@@ -179,22 +181,50 @@ bool AI_chaos(Board& board);
 bool AI_dummy(Board& board);
 
 int main() {
-    Board game(6);
+
+    //display instructions for humans at start of game //TODO
+    int humanInput;
+    cout<<"Welcome to Order and Chaos! ";
+
+    while(true)
+    {
+        try {
+            cout<<"Please choose appropriate size for board game: 6, 7, 8, or 9: ";
+            cin>> humanInput;
+            Board game(humanInput); //if runtime error happens, it goes to the exception catch asap
+
+            break;
+
+        } catch (const std::runtime_error& e)
+        {
+            cout << "Incorrect input. ";
+        }
+    }
+
+    Board game(humanInput);
     Game_State gs = game.check_gamestate();
     game.print_board();
 
     // Extremely incomplete
     while (gs == INCOMPLETE) {
         string player_move = "";
-        cout << "Enter a move [NumberLetter(X/O)]: ";
-        cin >> player_move;
+        while(true)
+        {
+            try {
+                cout << "Enter a move [NumberLetter(X/O)]: ";
+                cin >> player_move;
+                
+                char c = toupper(player_move.at(2));
+                ushort x = player_move.at(0) - '0' - 1;
+                ushort y = toupper(player_move.at(1)) - 'A';
 
-        // This sucks! Please make it not suck!
-        char c = toupper(player_move.at(2));
-        ushort x = player_move.at(0) - '0' - 1;
-        ushort y = toupper(player_move.at(1)) - 'A';
+                game.add_piece(c, x, y);
 
-        game.add_piece(c, x, y);
+                break;
+            } catch(const runtime_error& e) {
+                cout<<"Incorrect input. ";
+            }
+        }
         game.print_board();
         cout << "Cells used: " << game.used << "\n\n";
         gs = game.check_gamestate();
