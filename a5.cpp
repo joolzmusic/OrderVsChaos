@@ -28,12 +28,16 @@
 // You can use any other C++17 standard #includes that you need.
 //
 #include <iostream>
+#include <ctime>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 
 using namespace std;
 
 enum Game_State { INCOMPLETE, ORDER_WIN, CHAOS_WIN };
+struct Point { ushort x, y; };
+struct Move { char piece; Point cell; };
 
 class Board {
 private:
@@ -63,7 +67,7 @@ public:
 
     const ushort& size = _size;
     const ushort& used = _used;
-    char** board = _board;
+    const uint area = _size * _size;
 
     void verify_board() const {
         for (ushort y = 0; y < size; y++)
@@ -72,7 +76,7 @@ public:
                     throw runtime_error("Invalid board!");
     }
 
-    char get_tile(ushort x, ushort y) const {
+    char get_cell(ushort x, ushort y) const {
         if (x >= size || y >= size) {
             throw runtime_error("Tried to get cell out of bounds!");
             return '\0';
@@ -81,7 +85,6 @@ public:
         return _board[y][x];
     }
 
-    // Should this produce a string instead?
     void print_board() const {
         cout << "  ";
         for (ushort x = 0; x < size; x++) cout << x + 1 << ' ';
@@ -143,7 +146,23 @@ public:
         }
         
         // If all cells are used, Chaos wins. If not, the game is incomplete.
-        return used == size ? CHAOS_WIN : INCOMPLETE;
+        return used == size * size ? CHAOS_WIN : INCOMPLETE;
+    }
+
+    // Returns a heap-allocated array of all free cells on the board. You must free this!
+    Point* get_free_cells() const {
+        Point* free_cells = new Point[size * size - used];
+        ushort index = 0;
+
+        for (ushort y = 0; y < size; y++)
+            for (ushort x = 0; x < size; x++)
+                if (_board[y][x] == '.') {
+                    free_cells[index].x = x;
+                    free_cells[index].y = y;
+                    index++;
+                }
+
+        return free_cells;
     }
 
     void reset_board() {
@@ -155,48 +174,78 @@ public:
     }
 
     // Returns true if the piece was successfully added, false if not. Also throws exceptions.
-    bool add_piece(char c, ushort x, ushort y) {
-        if (x >= size || y >= size) {
+    bool add_piece(Move m) {
+        if (m.cell.x >= size || m.cell.y >= size) {
             throw runtime_error("Tried to set to cell out of bounds!");
             return false;
         }
 
-        if (c != 'X' && c != 'O') {
+        if (m.piece != 'X' && m.piece != 'O') {
             throw runtime_error("Tried to set invalid piece! (Must be X or O)");
             return false;
         }
 
-        if (_board[y][x] == 'X' || _board[y][x] == 'O') return false;
+        if (_board[m.cell.y][m.cell.x] == 'X' || _board[m.cell.y][m.cell.x] == 'O') return false;
 
-        _board[y][x] = c;
+        _board[m.cell.y][m.cell.x] = m.piece;
         _used++;
         return true;
     }
 };
 
-bool AI_order(Board& board);
-bool AI_chaos(Board& board);
-bool AI_dummy(Board& board);
+
+Move ai_random(Board& board);
+Move ai_clever(Board& board);
 
 int main() {
-    Board game(6);
+    srand(time(NULL));
+
+    int board_size;
+
+    cout<<"Welcome to Order and Chaos!\n";
+
+    while(true) {
+        try {
+            cout << "Please choose appropriate size for board game: 6, 7, 8, or 9: ";
+            cin >> board_size;
+            Board game(board_size); // if runtime error happens, it goes to the exception catch asap
+
+            break;
+        } catch (const std::runtime_error& e) {
+            cout << "Invalid input.\n";
+        }
+    }
+
+    Board game(board_size);
     Game_State gs = game.check_gamestate();
     game.print_board();
 
     // Extremely incomplete
     while (gs == INCOMPLETE) {
         string player_move = "";
-        cout << "Enter a move [NumberLetter(X/O)]: ";
-        cin >> player_move;
+        while(true) {
+            try {
+                cout << "Enter a move [NumberLetter(X/O)]: ";
+                cin >> player_move;
 
-        // This sucks! Please make it not suck!
-        char c = toupper(player_move.at(2));
-        ushort x = player_move.at(0) - '0' - 1;
-        ushort y = toupper(player_move.at(1)) - 'A';
+                char c = toupper(player_move.at(2));
+                ushort x = player_move.at(0) - '0' - 1;
+                ushort y = toupper(player_move.at(1)) - 'A';
 
-        game.add_piece(c, x, y);
+                game.add_piece({c, {x, y}});
+
+                break;
+            } catch(const runtime_error& e) {
+                cout << "Invalid input.\n";
+            }
+        }
+
+        Move ai_move = ai_random(game);
+        game.add_piece(ai_move);
         game.print_board();
-        cout << "Cells used: " << game.used << "\n\n";
+        cout << "CPU plays an \"" << ai_move.piece << "\" at " << ai_move.cell.x + 1
+             << static_cast<char>(ai_move.cell.y + 'A') << '\n';
+
         gs = game.check_gamestate();
 
         switch (gs) {
@@ -216,21 +265,51 @@ int main() {
     return 0;
 }
 
+// Loads the coordinates of each empty cell on the board and places a random piece on one of them.
+// Returns the coordinates of the piece placed.
+Move ai_random(Board& board) {
+    if (board.used == board.size * board.size) {
+        throw runtime_error("Tried to play on a full board!");
+        return {'X', {0, 0}};
+    }
+
+    Point* free_cells = board.get_free_cells();
+
+    Move m = {
+        rand() % 2 ? 'X' : 'O',
+        free_cells[rand() % (board.size * board.size - board.used)]
+    };
+
+    delete[] free_cells;
+    return m;
+}
+
+Move ai_clever(Board& board) {
+    if (board.used == board.size * board.size) {
+        throw runtime_error("Tried to play on a full board!");
+        return {'O', {0, 0}};
+    }
+
+    Point* free_cells = board.get_free_cells();
+
+    Move m = {'.', {0, 0}};
+
+    delete[] free_cells;
+    return m;
+}
 
 /*
 Assignment 5 Report
 ===================
 Description of Computers Playing Strategy
 -----------------------------------------
-AI_order:
-    TBA. If playing first, always takes a centre cell with a random piece.
+ai_random:
+    Always places a random piece on a random open cell. Rather boring.
 
-AI_chaos:
-    A contrarian. Searches for the longest row/column/cross of the same pieces, and places the
-    opposite piece at one end. If playing first, always takes a centre cell with a random piece.
-
-AI_dummy:
-    Always places a random piece on a random cell. Rather boring.
+ai_clever:
+    Looks for the longest sequence of pieces in a row, column, or diagonal. If it finds one, it
+    places a piece on the next cell in that sequence. If playing Order, it places a piece of the
+    same type. Vice versa if playing Chaos. Opening play is a random piece on a centre tile.
 
 Extra Features
 --------------
