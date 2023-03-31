@@ -35,7 +35,9 @@
 
 using namespace std;
 
+enum Player_Role { ORDER, CHAOS };
 enum Game_State { INCOMPLETE, ORDER_WIN, CHAOS_WIN };
+
 struct Point { ushort x, y; };
 struct Move { char piece; Point cell; };
 
@@ -56,7 +58,7 @@ public:
         _board = new char*[_size];
         for (ushort y = 0; y < _size; y++) {
             _board[y] = new char[_size];
-            for (ushort x = 0; x < _size; x++) _board[y][x] = '.'; // Don't want garbage data!
+            for (ushort x = 0; x < _size; x++) _board[y][x] = '*'; // Don't want garbage data!
         }
     }
 
@@ -72,7 +74,7 @@ public:
     void verify_board() const {
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++)
-                if (_board[y][x] != 'X' && _board[y][x] != 'O' && _board[y][x] !=  '.')
+                if (_board[y][x] != 'X' && _board[y][x] != 'O' && _board[y][x] !=  '*')
                     throw runtime_error("Invalid board!");
     }
 
@@ -91,12 +93,10 @@ public:
         cout << '\n';
 
         for (ushort y = 0; y < size; y++) {
-            cout << static_cast<char>('A' + y) << ' ';
+            cout << (char)('A' + y) << ' ';
             for (ushort x = 0; x < size; x++) cout << _board[y][x] << ' ';
             cout << '\n';
         }
-
-        cout << '\n';
     }
 
     // This one's a doozy
@@ -106,57 +106,57 @@ public:
         // Check for five in a row in any direction by casting a "ray" in each direction
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++) {
-                if (_board[y][x] == '.') continue;
+                if (_board[y][x] == '*') continue;
 
                 // Check south
                 if (y + 4 < size) { // Check to see if there's actually enough room for a line
-                    for (short i = y, consecutive = 1; i < size; i++) {
-                        if (_board[i][x] == _board[i + 1][x]) consecutive++;
+                    for (ushort i = y, len = 1; i < size - 1; i++) {
+                        if (_board[i][x] == _board[i + 1][x]) len++;
                         else break;
-                        if (consecutive >= 5) return ORDER_WIN;
+                        if (len >= 5) return ORDER_WIN;
                     }
                 }
 
                 // Check east
                 if (x + 4 < size) {
-                    for (short i = x, consecutive = 1; i < size; i++) {
-                        if (_board[y][i] == _board[y][i + 1]) consecutive++;
+                    for (ushort i = x, len = 1; i < size - 1; i++) {
+                        if (_board[y][i] == _board[y][i + 1]) len++;
                         else break;
-                        if (consecutive >= 5) return ORDER_WIN;
+                        if (len >= 5) return ORDER_WIN;
                     }
                 }
 
                 // Check southeast
                 if (x + 4 < size && y + 4 < size) {
-                    for (short i = x, j = y, consecutive = 1; i < size && j < size; i++, j++) {
-                        if (_board[j][i] == _board[j + 1][i + 1]) consecutive++;
+                    for (ushort i = x, j = y, len = 1; i < size - 1 && j < size - 1; i++, j++) {
+                        if (_board[j][i] == _board[j + 1][i + 1]) len++;
                         else break;
-                        if (consecutive >= 5) return ORDER_WIN;
+                        if (len >= 5) return ORDER_WIN;
                     }
                 }
 
                 // Check southwest
                 if (x >= 4 && y + 4 < size) {
-                    for (short i = x, j = y, consecutive = 1; i >= 0 && j < size; i--, j++) {
-                        if (_board[j][i] == _board[j + 1][i - 1]) consecutive++;
+                    for (ushort i = x, j = y, len = 1; i > 0 && j < size - 1; i--, j++) {
+                        if (_board[j][i] == _board[j + 1][i - 1]) len++;
                         else break;
-                        if (consecutive >= 5) return ORDER_WIN;
+                        if (len >= 5) return ORDER_WIN;
                     }
                 }
         }
         
         // If all cells are used, Chaos wins. If not, the game is incomplete.
-        return used == size * size ? CHAOS_WIN : INCOMPLETE;
+        return used == area ? CHAOS_WIN : INCOMPLETE;
     }
 
     // Returns a heap-allocated array of all free cells on the board. You must free this!
     Point* get_free_cells() const {
-        Point* free_cells = new Point[size * size - used];
+        Point* free_cells = new Point[area - used];
         ushort index = 0;
 
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++)
-                if (_board[y][x] == '.') {
+                if (_board[y][x] == '*') {
                     free_cells[index].x = x;
                     free_cells[index].y = y;
                     index++;
@@ -168,7 +168,7 @@ public:
     void reset_board() {
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++)
-                _board[y][x] = '.';
+                _board[y][x] = '*';
 
         _used = 0;
     }
@@ -193,82 +193,136 @@ public:
     }
 };
 
-
+Move prompt_player_move(const char* prompt, Board& board); // Returns an invalid move if the player concedes
 Move ai_random(Board& board);
 Move ai_clever(Board& board);
 
-int main() {
+int main(void) {
     srand(time(NULL));
+    ushort board_size = 0;
+    uint turn_count = 0;
+    Player_Role human_player_role = rand() % 2 ? ORDER : CHAOS;
 
-    int board_size;
+    cout << "Welcome to Order and Chaos!\n";
+    // TODO: Add game rules
 
-    cout<<"Welcome to Order and Chaos!\n";
-
-    while(true) {
-        try {
-            cout << "Please choose appropriate size for board game: 6, 7, 8, or 9: ";
-            cin >> board_size;
-            Board game(board_size); // if runtime error happens, it goes to the exception catch asap
-
-            break;
-        } catch (const std::runtime_error& e) {
-            cout << "Invalid input.\n";
-        }
+    while(board_size < 6 || board_size > 9) {
+        cout << "Please choose appropriate size for board game: 6, 7, 8, or 9: ";
+        cin >> board_size;
+        if (board_size >= 6 || board_size <= 9) break;
+        cout << "Invalid input.\n";
     }
 
     Board game(board_size);
     Game_State gs = game.check_gamestate();
-    game.print_board();
+    cout << "You are playing as " << (human_player_role == ORDER ? "Order" : "Chaos");
+    cout << " - Order to play first.\n";
+    if (human_player_role == ORDER) game.print_board(); // Show a blank board if human goes first
+    cout << '\n';
 
-    // Extremely incomplete
     while (gs == INCOMPLETE) {
-        string player_move = "";
-        while(true) {
-            try {
-                cout << "Enter a move [NumberLetter(X/O)]: ";
-                cin >> player_move;
+        Move order_move = human_player_role == ORDER ? 
+            prompt_player_move("Enter a move [NumberLetter(X/O)]: ", game) : ai_random(game);
 
-                char c = toupper(player_move.at(2));
-                ushort x = player_move.at(0) - '0' - 1;
-                ushort y = toupper(player_move.at(1)) - 'A';
-
-                game.add_piece({c, {x, y}});
-
-                break;
-            } catch(const runtime_error& e) {
-                cout << "Invalid input.\n";
-            }
+        if (order_move.piece == '\0') {
+            cout << "You conceded. You lost in " << turn_count << " turn(s). Good game.\n";
+            return 0;
         }
 
-        Move ai_move = ai_random(game);
-        game.add_piece(ai_move);
-        game.print_board();
-        cout << "CPU plays an \"" << ai_move.piece << "\" at " << ai_move.cell.x + 1
-             << static_cast<char>(ai_move.cell.y + 'A') << '\n';
+        if (human_player_role != ORDER) {
+            cout << "Computer plays " << order_move.piece << " at ";
+            cout << order_move.cell.x + 1 << (char)(order_move.cell.y + 'A') << '\n';
+        }
 
+        game.add_piece(order_move);
+        game.print_board();
+        cout << '\n';
+
+        Move chaos_move = human_player_role == CHAOS ? 
+            prompt_player_move("Enter a move [NumberLetter(X/O)]: ", game) : ai_random(game);
+
+        if (order_move.piece == '\0' || chaos_move.piece == '\0') {
+            cout << "You conceded. You lost in " << turn_count << " turn(s). Good game.\n";
+            return 0;
+        }
+
+        if (human_player_role != CHAOS) {
+            cout << "Computer plays " << order_move.piece << " at ";
+            cout << order_move.cell.x + 1 << (char)(order_move.cell.y + 1 + 'A') << '\n';
+        }
+
+        game.add_piece(chaos_move);
+        game.print_board();
+        cout << '\n';
+        
+        turn_count++;
         gs = game.check_gamestate();
 
         switch (gs) {
             case ORDER_WIN:
                 cout << "Order wins!\n";
+                cout << (human_player_role == ORDER ? "You won" : "You lost");
+                cout << " in " << turn_count << " turns. Good game";
+                cout << (human_player_role == ORDER ? ", well played." : ".") << '\n';
                 break;
             
             case CHAOS_WIN:
                 cout << "Chaos wins!\n";
+                cout << (human_player_role == CHAOS ? "You won" : "You lost");
+                cout << " in " << turn_count << " turns. Good game";
+                cout << (human_player_role == CHAOS ? ", well played." : ".") << '\n';
                 break;
             
-            default:
-                break;
+            default: break;
         }
     }
-
+    
     return 0;
+}
+
+Move prompt_player_move(const char* prompt, Board& board) {
+    string player_move_str = "";
+    Move player_move = {'\0', {0, 0}};
+
+    while (true) {
+        cout << prompt;
+        cin >> player_move_str;
+        for (char& c : player_move_str) c = toupper(c);
+        if (player_move_str == "CONCEDE" || player_move_str == "QUIT") return {'\0', {0, 0}};
+
+        // Validate input and break if valid
+        if (player_move_str.length() == 3)
+            if (isdigit(player_move_str.at(0)) && isalpha(player_move_str.at(1)))
+                if (player_move_str.at(2) == 'X' || player_move_str.at(2) == 'O') break;
+
+        cout << "Invalid input.\n";
+    }
+
+    player_move = {
+        player_move_str.at(2), {
+            (ushort)(player_move_str.at(0) - '0' - 1),
+            (ushort)(player_move_str.at(1) - 'A')
+        }
+    };
+
+    // Ask again if the cell is already occupied or if it's out of bounds
+    if (player_move.cell.x >= board.size || player_move.cell.y >= board.size) {
+        cout << "Cell out of bounds.\n";
+        return prompt_player_move(prompt, board);
+    }
+
+    if (board.get_cell(player_move.cell.x, player_move.cell.y) != '*') {
+        cout << "Cell already occupied.\n";
+        return prompt_player_move(prompt, board);
+    }
+    
+    return player_move;
 }
 
 // Loads the coordinates of each empty cell on the board and places a random piece on one of them.
 // Returns the coordinates of the piece placed.
 Move ai_random(Board& board) {
-    if (board.used == board.size * board.size) {
+    if (board.used == board.area) {
         throw runtime_error("Tried to play on a full board!");
         return {'X', {0, 0}};
     }
@@ -277,7 +331,7 @@ Move ai_random(Board& board) {
 
     Move m = {
         rand() % 2 ? 'X' : 'O',
-        free_cells[rand() % (board.size * board.size - board.used)]
+        free_cells[rand() % (board.area - board.used)]
     };
 
     delete[] free_cells;
@@ -285,14 +339,14 @@ Move ai_random(Board& board) {
 }
 
 Move ai_clever(Board& board) {
-    if (board.used == board.size * board.size) {
+    if (board.used == board.area) {
         throw runtime_error("Tried to play on a full board!");
         return {'O', {0, 0}};
     }
 
     Point* free_cells = board.get_free_cells();
 
-    Move m = {'.', {0, 0}};
+    Move m = {'*', {0, 0}};
 
     delete[] free_cells;
     return m;
