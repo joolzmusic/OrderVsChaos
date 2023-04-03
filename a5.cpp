@@ -117,41 +117,37 @@ public:
                 if (_board[y][x] == '*') continue;
 
                 // Check south
-                if (y + 4 < size) { // Check to see if there's actually enough room for a line
+                if (y + 4 < size) // Check to see if there's actually enough room for a line
                     for (ushort i = y, len = 1; i < size - 1; i++) {
                         if (_board[i][x] == _board[i + 1][x]) len++;
                         else break;
                         if (len >= 5) return Game_State::ORDER_WIN;
                     }
-                }
 
                 // Check east
-                if (x + 4 < size) {
+                if (x + 4 < size)
                     for (ushort i = x, len = 1; i < size - 1; i++) {
                         if (_board[y][i] == _board[y][i + 1]) len++;
                         else break;
                         if (len >= 5) return Game_State::ORDER_WIN;
                     }
-                }
 
                 // Check southeast
-                if (x + 4 < size && y + 4 < size) {
+                if (x + 4 < size && y + 4 < size)
                     for (ushort i = x, j = y, len = 1; i < size - 1 && j < size - 1; i++, j++) {
                         if (_board[j][i] == _board[j + 1][i + 1]) len++;
                         else break;
                         if (len >= 5) return Game_State::ORDER_WIN;
                     }
-                }
 
                 // Check southwest
-                if (x >= 4 && y + 4 < size) {
+                if (x >= 4 && y + 4 < size)
                     for (ushort i = x, j = y, len = 1; i > 0 && j < size - 1; i--, j++) {
                         if (_board[j][i] == _board[j + 1][i - 1]) len++;
                         else break;
                         if (len >= 5) return Game_State::ORDER_WIN;
                     }
-                }
-        }
+            }
         
         // If all cells are used, Chaos wins. If not, the game is incomplete.
         return used == area ? Game_State::CHAOS_WIN : Game_State::INCOMPLETE;
@@ -205,16 +201,21 @@ Move prompt_player_move(const char* prompt, const Board& board);
 Move ai_random(const Board& board);
 Move ai_clever(const Board& board);
 
-int main(void) {
-    srand(time(nullptr));
+int main(int argc, char** argv) {
+    // This should NEVER be done in the real world
+    argv = nullptr;
+    srand(time((long int*)argv));
 
     ushort board_size = 0;
     uint turn_count = 0;
     const Player_Role human_player_role = rand() % 2 ? Player_Role::ORDER : Player_Role::CHAOS;
     const Player_Role first_player = rand() % 2 ? Player_Role::ORDER : Player_Role::CHAOS;
 
-    cout << "Welcome to Order and Chaos!\n";
-    // TODO: Add game rules
+    // Skip introduction if the game has been restarted
+    if (argc != -1) {
+        cout << "Welcome to Order and Chaos!\n";
+        // TODO: Add game rules
+    }
 
     while (board_size < 6 || board_size > 9) {
         cout << "Please choose appropriate size for board game: 6, 7, 8, or 9: ";
@@ -242,8 +243,8 @@ int main(void) {
             prompt_player_move("Enter a move [NumberLetter(X/O)]: ", game) : ai_random(game);
 
         if (player_1_move.piece == '\0') {
-            cout << "You conceded. You lost in " << turn_count << " turn(s). Good game.\n";
-            return 0;
+            cout << "You conceded after " << turn_count << " turn(s). Good game.\n";
+            break;
         }
 
         if (human_player_role != first_player) {
@@ -266,8 +267,8 @@ int main(void) {
             prompt_player_move("Enter a move [NumberLetter(X/O)]: ", game) : ai_random(game);
 
         if (player_1_move.piece == '\0' || player_2_move.piece == '\0') {
-            cout << "You conceded. You lost in " << turn_count << " turn(s). Good game.\n";
-            return 0;
+            cout << "You conceded after " << turn_count << " turn(s). Good game.\n";
+            break;
         }
 
         if (human_player_role == first_player) {
@@ -304,8 +305,7 @@ int main(void) {
     char play_again = 'N';
     cout << "Play again? (y/N): ";
     cin >> play_again;
-    if (play_again == 'y' || play_again == 'Y') return main();
-    
+    if (play_again == 'y' || play_again == 'Y') return main(-1, nullptr);
     return 0;
 }
 
