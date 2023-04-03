@@ -35,12 +35,16 @@
 
 using namespace std;
 
+// Could just use int-based return codes but this improves readability
+// Also using enum classes to satisfy project requirements
 enum class Player_Role { ORDER, CHAOS };
 enum class Game_State { INCOMPLETE, ORDER_WIN, CHAOS_WIN };
 
 struct Point { ushort x, y; };
 struct Move { char piece; Point cell; };
 
+// The big cheese. Holds the board and all the game logic.
+// Board is stored as a heap-alloced 2D char array.
 class Board {
 private:
     char** _board;
@@ -62,6 +66,7 @@ public:
         }
     }
 
+    // Copy constructor, may well never be used.
     Board(const Board& b): _board(nullptr), _size(b.size), _used(b.used) {
         _board = new char*[_size];
         for (ushort y = 0; y < _size; y++) {
@@ -79,6 +84,7 @@ public:
     const ushort& used = _used;
     const uint area = _size * _size;
 
+    // Used for debugging. This error should not be caught, but prevented from ever happening!
     void verify_board() const {
         for (ushort y = 0; y < size; y++)
             for (ushort x = 0; x < size; x++)
@@ -86,6 +92,7 @@ public:
                     throw runtime_error("Invalid board!");
     }
 
+    // Returns the character at a given board spot. Throws error if OOB - should never happen!
     char get_cell(ushort x, ushort y) const {
         if (x >= size || y >= size) {
             throw runtime_error("Tried to get cell out of bounds!");
@@ -95,6 +102,7 @@ public:
         return _board[y][x];
     }
 
+    // Does what it says on the tin.
     void print_board() const {
         cout << "  ";
         for (ushort x = 0; x < size; x++) cout << x + 1 << ' ';
@@ -107,7 +115,7 @@ public:
         }
     }
 
-    // This one's a doozy
+    // Checks the game state, returning "INCOMPLETE," "ORDER_WIN," or "CHAOS_WIN."
     Game_State check_gamestate() const {
         verify_board(); // Can't be too safe!
 
@@ -177,7 +185,8 @@ public:
         _used = 0;
     }
 
-    // Returns true if the piece was successfully added, false if not. Also throws exceptions.
+    // Returns true if the piece was successfully added, false if not.
+    // Throws exceptions if piece is invalid or cell is out of bounds.
     bool add_piece(Move m) {
         if (m.cell.x >= size || m.cell.y >= size) {
             throw runtime_error("Tried to set to cell out of bounds!");
@@ -217,6 +226,7 @@ int main(int argc, char** argv) {
         // TODO: Add game rules
     }
 
+    // Determine board size
     while (board_size < 6 || board_size > 9) {
         cout << "Please choose appropriate size for board game: 6, 7, 8, or 9: ";
         cin >> board_size;
@@ -234,8 +244,10 @@ int main(int argc, char** argv) {
     if (first_player == human_player_role) game.print_board();
     cout << '\n';
 
+    // Main game loop
     while (gs == Game_State::INCOMPLETE) {
         // Player 1 turn
+        // If the first player is human, prompt them for a move. Otherwise, use the AI.
         if (first_player == human_player_role) 
             cout << (human_player_role == Player_Role::ORDER ? "[ORDER]: " : "[CHAOS]: ");
 
@@ -247,6 +259,7 @@ int main(int argc, char** argv) {
             break;
         }
 
+        // If the first player is NOT human, print the computer's move.
         if (human_player_role != first_player) {
             cout << "Computer plays " << player_1_move.piece << " at "
                  << player_1_move.cell.x + 1 << (char)(player_1_move.cell.y + 'A') << '\n';
@@ -260,6 +273,7 @@ int main(int argc, char** argv) {
         if (gs != Game_State::INCOMPLETE) break;
 
         // Player 2 turn
+        // If the first player ISN'T human, prompt them for a move. Otherwise, use the AI.
         if (first_player != human_player_role)
             cout << (human_player_role == Player_Role::ORDER ? "[ORDER]: " : "[CHAOS]: ");
 
@@ -280,8 +294,8 @@ int main(int argc, char** argv) {
         game.print_board();
         cout << '\n';
 
-        gs = game.check_gamestate();
         turn_count++;
+        gs = game.check_gamestate();
     }
 
     switch (gs) {
@@ -305,7 +319,7 @@ int main(int argc, char** argv) {
     char play_again = 'N';
     cout << "Play again? (y/N): ";
     cin >> play_again;
-    if (play_again == 'y' || play_again == 'Y') return main(-1, nullptr);
+    if (play_again == 'y' || play_again == 'Y') return main(-1, nullptr); // Bad, but kinda funny.
     return 0;
 }
 
